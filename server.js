@@ -1,3 +1,4 @@
+var mqtt = require('./mqtt.js')
 var http = require('http')
 var fs = require('fs')
 var url = require('url')
@@ -14,7 +15,24 @@ if (!port) {
     console.log('请指定端口号 如\nnode server.js 8888')
     process.exit(1)
 }
+//mqtt
+// mqtt()
 
+
+
+connection.query('CREATE DATABASE IF NOT EXISTS fang DEFAULT CHARSET utf8mb4 ;', function (error, results, fields) {
+    if (error) throw error;
+});
+
+//选中数据库
+connection.query('use fang')
+
+//创建表
+connection.query(`CREATE TABLE IF NOT EXISTS user(username VARCHAR(100),password VARCHAR(100));`, function (error, results, fields) {
+    if (error) throw error;
+});
+
+//axios
 var server = http.createServer(function (request, response) {
     var parsedUrl = url.parse(request.url, true)
     var pathWithQuery = request.url
@@ -45,37 +63,32 @@ var server = http.createServer(function (request, response) {
             response.end('很好')
             connection.connect();
             //创建一个数据库
-            connection.query('CREATE DATABASE IF NOT EXISTS fang DEFAULT CHARSET utf8mb4 ;', function (error, results, fields) {
-                if (error) throw error;
-                console.log('创建数据库')
-                console.log('The solution is: ', results);
-            });
 
-            //选中数据库
-            connection.query('use fang')
-
-            //创建表
-            connection.query(`CREATE TABLE IF NOT EXISTS user(username VARCHAR(100),password VARCHAR(100));`, function (error, results, fields) {
-                if (error) throw error;
-                console.log('创建表')
-                console.log('The solution is: ', results);
-            });
             //  插入记录
             connection.query(`INSERT INTO user(username,password) VALUES(${username},${password});`, function (error, results, fields) {
                 if (error) throw error;
-                console.log('插入记录')
-                console.log('The solution is: ', results);
             });
-
-            //插入记录
-            // connection.query('INSERT INTO user(username,password) VALUES(' + '"' + username + '"' + ',' + '"' + password + '"' + ');', function (error, results, fields) {
-            //     if (error) throw error;
-            //     console.log('插入记录')
-            //     console.log('The solution is: ', results);
-            // });
-
         })
-    } else {
+    }
+    if (path == '/history' && method == 'POST') {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'text/html;charset=utf-8')
+        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        let res
+        //选中数据库
+        connection.query('use smartfish')
+        //查找记录
+        // 选择最近的十个 SELECT name FROM user limit 10
+        connection.query(`SELECT * FROM smartfishtable;`, function (error, results, fields) {
+            if (error) throw error;
+            res = JSON.parse(JSON.stringify(results))
+            response.writeHead(200, { 'Content-type': 'text/html;charset=utf-8' });
+            response.write(JSON.stringify(res));
+            response.end()
+
+        });
+    }
+    else {
         response.statusCode = 200
         // 默认首页
         const filePath = path === '/' ? '/index.html' : path
