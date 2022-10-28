@@ -1,4 +1,4 @@
-var mqtt = require('./mqtt.js')
+const mqtt = require('./mqtt.js')
 var http = require('http')
 var fs = require('fs')
 var url = require('url')
@@ -15,10 +15,6 @@ if (!port) {
     console.log('请指定端口号 如\nnode server.js 8888')
     process.exit(1)
 }
-//mqtt
-// mqtt()
-
-
 
 connection.query('CREATE DATABASE IF NOT EXISTS fang DEFAULT CHARSET utf8mb4 ;', function (error, results, fields) {
     if (error) throw error;
@@ -46,7 +42,6 @@ var server = http.createServer(function (request, response) {
 
     console.log('有个人发请求过来啦！路径（带查询参数）为：' + pathWithQuery)
 
-
     if (path == '/register' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
@@ -69,6 +64,22 @@ var server = http.createServer(function (request, response) {
                 if (error) throw error;
             });
         })
+        return
+    }
+    if (path == '/mqtt') {
+        mqtt.mqttConnect()
+            .then((value) => {
+                if (value == true) {
+                    console.log('mqtt已连接')
+                    response.statusCode = 200
+                    // response.setHeader('Content-Type', 'text/html;charset=utf-8')
+                    response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+                    response.write('hello')
+                    response.end()
+
+                }
+            })
+        return
     }
     if (path == '/history' && method == 'POST') {
         response.statusCode = 200
@@ -85,8 +96,10 @@ var server = http.createServer(function (request, response) {
             response.writeHead(200, { 'Content-type': 'text/html;charset=utf-8' });
             response.write(JSON.stringify(res));
             response.end()
+            return
 
         });
+        return
     }
     else {
         response.statusCode = 200
