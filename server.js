@@ -9,6 +9,7 @@ var connection = mysql.createConnection({
     user: 'root',
     password: '',
 });
+connection.connect();
 
 if (!port) {
     console.log('请指定端口号 如\nnode server.js 8888')
@@ -20,7 +21,7 @@ connection.query('CREATE DATABASE IF NOT EXISTS fang DEFAULT CHARSET utf8mb4 ;',
 });
 
 //选中数据库
-connection.query('use fang')
+connection.query('use smartfish')
 
 //创建表
 connection.query(`CREATE TABLE IF NOT EXISTS user(username VARCHAR(100),password VARCHAR(100));`, function (error, results, fields) {
@@ -40,7 +41,7 @@ var server = http.createServer(function (request, response) {
     /******** 从这里开始看，上面不要看 ************/
 
     console.log('有个人发请求过来啦！路径（带查询参数）为：' + pathWithQuery)
-    if (path == '/light') {
+    if (path == '/light' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
         response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
@@ -51,8 +52,13 @@ var server = http.createServer(function (request, response) {
         request.on('end', () => {
             const lightString = Buffer.concat(light).toString()
             const lightObj = JSON.parse(lightString)
-            console.log(lightObj)
+            const lightStatus = `"${lightObj.light}"`
+            connection.query(`INSERT INTO smartfishtable(light) VALUES(${lightStatus} );`, function (error, results, fields) {
+                if (error) throw error;
+            });
+            response.end('结束')
         })
+        return
     }
 
     if (path == '/register' && method == 'POST') {
@@ -69,7 +75,7 @@ var server = http.createServer(function (request, response) {
             const username = `"${obj.username}"`
             const password = `"${obj.password}"`
             response.end('很好')
-            connection.connect();
+
             //创建一个数据库
 
             //  插入记录
