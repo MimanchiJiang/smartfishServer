@@ -8,7 +8,6 @@ var connection = mysql.createConnection({
     host: 'localhost',
     user: 'root',
     password: '',
-    // database: 'smartfish'
 });
 
 if (!port) {
@@ -41,6 +40,20 @@ var server = http.createServer(function (request, response) {
     /******** 从这里开始看，上面不要看 ************/
 
     console.log('有个人发请求过来啦！路径（带查询参数）为：' + pathWithQuery)
+    if (path == '/light') {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'text/html;charset=utf-8')
+        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        let light = []
+        request.on('data', (chunk) => {
+            light.push(chunk)
+        })
+        request.on('end', () => {
+            const lightString = Buffer.concat(light).toString()
+            const lightObj = JSON.parse(lightString)
+            console.log(lightObj)
+        })
+    }
 
     if (path == '/register' && method == 'POST') {
         response.statusCode = 200
@@ -67,18 +80,15 @@ var server = http.createServer(function (request, response) {
         return
     }
     if (path == '/mqtt') {
-        mqtt.mqttConnect()
-            .then((value) => {
-                if (value == true) {
-                    console.log('mqtt已连接')
-                    response.statusCode = 200
-                    // response.setHeader('Content-Type', 'text/html;charset=utf-8')
-                    response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
-                    response.write('hello')
-                    response.end()
-
-                }
-            })
+        mqtt.mqttConnect(() => {
+            console.log('mqtt已连接')
+            response.statusCode = 200
+            response.setHeader('Content-Type', 'text/html;charset=utf-8')
+            response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+            response.write('connected')
+            response.end()
+            return
+        })
         return
     }
     if (path == '/history' && method == 'POST') {
