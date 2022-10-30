@@ -31,8 +31,10 @@ module.exports.mqttConnect = (callback) => {
     })
 
     //mqtt接受消息
-    client.once('message', (topic, payload) => {
+    client.on('message', (topic, payload) => {
         console.log('Received Message:', topic, payload.toString())
+        const obj = JSON.parse(payload.toString())
+        console.log(obj)
     })
 
     //发布消息
@@ -43,8 +45,8 @@ module.exports.mqttConnect = (callback) => {
             }
         })
     })
-
 }
+
 
 
 

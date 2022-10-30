@@ -1,4 +1,4 @@
-const mqtt = require('./mqtt.js')
+// const mqtt = require('./mqtt.js')
 var http = require('http')
 var fs = require('fs')
 var url = require('url')
@@ -9,13 +9,75 @@ var connection = mysql.createConnection({
     user: 'root',
     password: '',
 });
-connection.connect();
+
+// -----------------------------------------------------  mqtt --------------------------------------------------
+const mqtt = require('mqtt')
+const host = 'broker.emqx.io'
+const mqttPort = '1883'
+const clientId = `mqtt_${Math.random().toString(16).slice(3)}`
+const connectUrl = `mqtt://${host}:${mqttPort}`
+const topic = '15/data/temp'
+const client = mqtt.connect(connectUrl, {
+    clientId,
+    clean: true,
+    connectTimeout: 4000,
+    username: 'emqx',
+    password: 'public',
+    reconnectPeriod: 1000,
+})
+const mqttConnect = (callback) => {
+    const client = mqtt.connect(connectUrl, {
+        clientId,
+        clean: true,
+        connectTimeout: 4000,
+        username: 'emqx',
+        password: 'public',
+        reconnectPeriod: 1000,
+    })
+    client.once('error', () => {
+        console.log('出错了')
+    })
+
+    client.once('connect', () => {
+        connect = true
+        console.log(client.connected)
+        callback()
+        client.subscribe([topic], () => {
+            console.log(`Subscribe to topic '${topic}'`)
+        })
+
+    })
+    client.once('connect', () => {
+
+    })
+
+    //mqtt接受消息
+    client.on('message', (topic, payload) => {
+        console.log('Received Message:', topic, payload.toString())
+        const obj = JSON.parse(payload.toString())
+        console.log(obj)
+    })
+
+    //发布消息
+    // client.on('connect', () => {
+    //     client.publish(topic, 'nodejs mqtt test', { qos: 0, retain: false }, (error) => {
+    //         if (error) {
+    //             console.error(error)
+    //         }
+    //     })
+    // })
+}
+// -----------------------------------------------------  mqtt --------------------------------------------------
+
 
 if (!port) {
     console.log('请指定端口号 如\nnode server.js 8888')
     process.exit(1)
 }
-
+// ---------------------------------------------------   DATABASE   -----------------------------------------------
+//连接
+connection.connect();
+//创建数据库
 connection.query('CREATE DATABASE IF NOT EXISTS fang DEFAULT CHARSET utf8mb4 ;', function (error, results, fields) {
     if (error) throw error;
 });
@@ -27,6 +89,7 @@ connection.query('use smartfish')
 connection.query(`CREATE TABLE IF NOT EXISTS user(username VARCHAR(100),password VARCHAR(100));`, function (error, results, fields) {
     if (error) throw error;
 });
+// ---------------------------------------------------   DATABASE   -----------------------------------------------
 
 //axios
 var server = http.createServer(function (request, response) {
@@ -53,6 +116,12 @@ var server = http.createServer(function (request, response) {
             const lightString = Buffer.concat(light).toString()
             const lightObj = JSON.parse(lightString)
             const lightStatus = `"${lightObj.light}"`
+            console.log(lightStatus)
+            client.publish('15/data/light', lightObj.light, { qos: 0, retain: false }, (error) => {
+                if (error) {
+                    console.error(error)
+                }
+            })
             connection.query(`INSERT INTO smartfishtable(light) VALUES(${lightStatus} );`, function (error, results, fields) {
                 if (error) throw error;
             });
@@ -86,7 +155,7 @@ var server = http.createServer(function (request, response) {
         return
     }
     if (path == '/mqtt') {
-        mqtt.mqttConnect(() => {
+        mqttConnect(() => {
             console.log('mqtt已连接')
             response.statusCode = 200
             response.setHeader('Content-Type', 'text/html;charset=utf-8')
