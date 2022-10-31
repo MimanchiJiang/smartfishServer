@@ -19,7 +19,7 @@ const connectUrl = `mqtt://${host}:${mqttPort}`
 const topic = '15/data/temp'
 const client = mqtt.connect(connectUrl, {
     clientId,
-    clean: true,
+    clean: false,
     connectTimeout: 4000,
     username: 'emqx',
     password: 'public',
@@ -28,11 +28,17 @@ const client = mqtt.connect(connectUrl, {
 const mqttConnect = (callback) => {
     const client = mqtt.connect(connectUrl, {
         clientId,
-        clean: true,
+        clean: false,
         connectTimeout: 4000,
         username: 'emqx',
         password: 'public',
         reconnectPeriod: 1000,
+        // will: {
+        //     topic: '15/data/temp',
+        //     payload: '设备已断开',
+        //     qos: '2',
+        //     retain: false
+        // }
     })
     client.once('error', () => {
         console.log('出错了')
@@ -104,32 +110,56 @@ var server = http.createServer(function (request, response) {
     /******** 从这里开始看，上面不要看 ************/
 
     console.log('有个人发请求过来啦！路径（带查询参数）为：' + pathWithQuery)
+    let mqttContent = []
+    //灯带请求
     if (path == '/light' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
         response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
-        let light = []
         request.on('data', (chunk) => {
-            light.push(chunk)
+            mqttContent.push(chunk)
         })
         request.on('end', () => {
-            const lightString = Buffer.concat(light).toString()
-            const lightObj = JSON.parse(lightString)
-            const lightStatus = `"${lightObj.light}"`
-            console.log(lightStatus)
-            client.publish('15/data/light', lightObj.light, { qos: 0, retain: false }, (error) => {
+            const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
+            const light = mqttContentObj.light.toString()
+            const pump = mqttContentObj.pump.toString()
+            client.publish('15/data/light', light, { qos: 2, retain: false }, (error) => {
                 if (error) {
                     console.error(error)
                 }
             })
-            connection.query(`INSERT INTO smartfishtable(light) VALUES(${lightStatus} );`, function (error, results, fields) {
+            connection.query(`INSERT INTO smartfishtable(light,pump) VALUES(${light},${pump} );`, function (error, results, fields) {
                 if (error) throw error;
             });
-            response.end('结束')
+            mqttContent = []
         })
         return
     }
-
+    //水泵
+    if (path == '/pump' && method == 'POST') {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'text/html;charset=utf-8')
+        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        request.on('data', (chunk) => {
+            mqttContent.push(chunk)
+        })
+        request.on('end', () => {
+            const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
+            const light = mqttContentObj.light.toString()
+            const pump = mqttContentObj.pump.toString()
+            client.publish('15/data/pump', pump, { qos: 2, retain: false }, (error) => {
+                if (error) {
+                    console.error(error)
+                }
+            })
+            connection.query(`INSERT INTO smartfishtable(light,pump) VALUES(${light},${pump});`, function (error, results, fields) {
+                if (error) throw error;
+            });
+            mqttContent = []
+        })
+        return
+    }
+    //注册请求
     if (path == '/register' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
@@ -143,10 +173,6 @@ var server = http.createServer(function (request, response) {
             const obj = JSON.parse(string)
             const username = `"${obj.username}"`
             const password = `"${obj.password}"`
-            response.end('很好')
-
-            //创建一个数据库
-
             //  插入记录
             connection.query(`INSERT INTO user(username,password) VALUES(${username},${password});`, function (error, results, fields) {
                 if (error) throw error;
@@ -154,6 +180,7 @@ var server = http.createServer(function (request, response) {
         })
         return
     }
+    //mqtt请求
     if (path == '/mqtt') {
         mqttConnect(() => {
             console.log('mqtt已连接')
@@ -166,6 +193,7 @@ var server = http.createServer(function (request, response) {
         })
         return
     }
+    //历史记录请求
     if (path == '/history' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
