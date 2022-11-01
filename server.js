@@ -25,6 +25,11 @@ const client = mqtt.connect(connectUrl, {
     password: 'public',
     reconnectPeriod: 1000,
 })
+let data
+const dataDefault = {
+    temp: 26, light: false, pump: false
+}
+
 const mqttConnect = (callback) => {
     const client = mqtt.connect(connectUrl, {
         clientId,
@@ -51,19 +56,11 @@ const mqttConnect = (callback) => {
         client.subscribe([topic], () => {
             console.log(`Subscribe to topic '${topic}'`)
         })
-
     })
-    client.once('connect', () => {
-
-    })
-
-    //mqtt接受消息
     client.on('message', (topic, payload) => {
         console.log('Received Message:', topic, payload.toString())
-        const obj = JSON.parse(payload.toString())
-        console.log(obj)
+        data = JSON.parse(payload.toString())
     })
-
     //发布消息
     // client.on('connect', () => {
     //     client.publish(topic, 'nodejs mqtt test', { qos: 0, retain: false }, (error) => {
@@ -109,8 +106,19 @@ var server = http.createServer(function (request, response) {
 
     /******** 从这里开始看，上面不要看 ************/
 
-    console.log('有个人发请求过来啦！路径（带查询参数）为：' + pathWithQuery)
+    // console.log('有个人发请求过来啦！路径（带查询参数）为：' + pathWithQuery)
     let mqttContent = []
+    if (path == '/data' && method == 'POST') {
+        if (data == undefined) {
+            data = dataDefault
+        }
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'text/html;charset=utf-8')
+        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        response.write(JSON.stringify(data))
+        response.end()
+        return
+    }
     //灯带请求
     if (path == '/light' && method == 'POST') {
         response.statusCode = 200
@@ -121,9 +129,11 @@ var server = http.createServer(function (request, response) {
         })
         request.on('end', () => {
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
+            data = mqttContentObj
             const light = mqttContentObj.light.toString()
+            console.log(JSON.stringify(light))
             const pump = mqttContentObj.pump.toString()
-            client.publish('15/data/light', light, { qos: 2, retain: false }, (error) => {
+            client.publish('15/data/light', JSON.stringify(light), { qos: 2, retain: false }, (error) => {
                 if (error) {
                     console.error(error)
                 }
