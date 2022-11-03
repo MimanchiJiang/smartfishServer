@@ -108,15 +108,20 @@ var server = http.createServer(function (request, response) {
 
     // console.log('有个人发请求过来啦！路径（带查询参数）为：' + pathWithQuery)
     let mqttContent = []
+    //拿取数据库的最新一条数据
     if (path == '/data' && method == 'POST') {
-        if (data == undefined) {
-            data = dataDefault
-        }
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
         response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
-        response.write(JSON.stringify(data))
-        response.end()
+        let newData
+        connection.query(`SELECT * FROM smartfishtable  ORDER BY id desc limit 1`, function (error, results, fields) {
+            if (error) throw error;
+            newData = JSON.parse(JSON.stringify(results))
+            response.writeHead(200, { 'Content-type': 'text/html;charset=utf-8' });
+            response.write(JSON.stringify(newData));
+            response.end()
+            return
+        });
         return
     }
     //灯带请求
@@ -138,7 +143,7 @@ var server = http.createServer(function (request, response) {
                     console.error(error)
                 }
             })
-            connection.query(`INSERT INTO smartfishtable(light,pump) VALUES(${light},${pump} );`, function (error, results, fields) {
+            connection.query(`INSERT INTO smartfishtable(light,pump,time) VALUES(${light},${pump},NOW() );`, function (error, results, fields) {
                 if (error) throw error;
             });
             mqttContent = []
@@ -162,7 +167,7 @@ var server = http.createServer(function (request, response) {
                     console.error(error)
                 }
             })
-            connection.query(`INSERT INTO smartfishtable(light,pump) VALUES(${light},${pump});`, function (error, results, fields) {
+            connection.query(`INSERT INTO smartfishtable(light,pump,time) VALUES(${light},${pump},NOW());`, function (error, results, fields) {
                 if (error) throw error;
             });
             mqttContent = []
