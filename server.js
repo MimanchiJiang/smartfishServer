@@ -9,6 +9,22 @@ var connection = mysql.createConnection({
     user: 'root',
     password: '',
 });
+// ---------------------------------------------------   DATABASE   -----------------------------------------------
+//连接
+connection.connect();
+//创建数据库
+connection.query('CREATE DATABASE IF NOT EXISTS fang DEFAULT CHARSET utf8mb4 ;', function (error, results, fields) {
+    if (error) throw error;
+});
+
+//选中数据库
+connection.query('use smartfish')
+
+//创建表
+connection.query(`CREATE TABLE IF NOT EXISTS user(username VARCHAR(100),password VARCHAR(100));`, function (error, results, fields) {
+    if (error) throw error;
+});
+// ---------------------------------------------------   DATABASE   -----------------------------------------------
 
 // -----------------------------------------------------  mqtt --------------------------------------------------
 const mqtt = require('mqtt')
@@ -26,9 +42,6 @@ const client = mqtt.connect(connectUrl, {
     reconnectPeriod: 1000,
 })
 let data
-const dataDefault = {
-    temp: 26, light: false, pump: false
-}
 
 const mqttConnect = (callback) => {
     const client = mqtt.connect(connectUrl, {
@@ -38,12 +51,6 @@ const mqttConnect = (callback) => {
         username: 'emqx',
         password: 'public',
         reconnectPeriod: 1000,
-        // will: {
-        //     topic: '15/data/temp',
-        //     payload: '设备已断开',
-        //     qos: '2',
-        //     retain: false
-        // }
     })
     client.once('error', () => {
         console.log('出错了')
@@ -59,7 +66,13 @@ const mqttConnect = (callback) => {
     })
     client.on('message', (topic, payload) => {
         console.log('Received Message:', topic, payload.toString())
-        data = JSON.parse(payload.toString())
+        localData = JSON.parse(payload.toString())
+        const light = localData.light
+        const pump = localData.shuibeng
+        const temp = localData.temp
+        connection.query(`INSERT INTO smartfishtable(temp,light,pump,time) VALUES(${temp},${light},${pump},NOW() );`, function (error, results, fields) {
+            if (error) throw error;
+        });
     })
     //发布消息
     // client.on('connect', () => {
@@ -77,22 +90,7 @@ if (!port) {
     console.log('请指定端口号 如\nnode server.js 8888')
     process.exit(1)
 }
-// ---------------------------------------------------   DATABASE   -----------------------------------------------
-//连接
-connection.connect();
-//创建数据库
-connection.query('CREATE DATABASE IF NOT EXISTS fang DEFAULT CHARSET utf8mb4 ;', function (error, results, fields) {
-    if (error) throw error;
-});
 
-//选中数据库
-connection.query('use smartfish')
-
-//创建表
-connection.query(`CREATE TABLE IF NOT EXISTS user(username VARCHAR(100),password VARCHAR(100));`, function (error, results, fields) {
-    if (error) throw error;
-});
-// ---------------------------------------------------   DATABASE   -----------------------------------------------
 
 //axios
 var server = http.createServer(function (request, response) {
@@ -136,7 +134,6 @@ var server = http.createServer(function (request, response) {
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
             data = mqttContentObj
             const light = mqttContentObj.light.toString()
-            console.log(JSON.stringify(light))
             const pump = mqttContentObj.pump.toString()
             client.publish('15/data/light', JSON.stringify(light), { qos: 2, retain: false }, (error) => {
                 if (error) {
