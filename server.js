@@ -41,7 +41,6 @@ const client = mqtt.connect(connectUrl, {
     password: 'public',
     reconnectPeriod: 1000,
 })
-let data
 
 const mqttConnect = (callback) => {
     const client = mqtt.connect(connectUrl, {
@@ -53,7 +52,9 @@ const mqttConnect = (callback) => {
         reconnectPeriod: 1000,
     })
     client.once('error', () => {
-        console.log('出错了')
+        // console.log(error)
+        //如果出错 就重连
+
     })
 
     client.once('connect', () => {
@@ -65,22 +66,22 @@ const mqttConnect = (callback) => {
         })
     })
     client.on('message', (topic, payload) => {
-        console.log('Received Message:', topic, payload.toString())
         localData = JSON.parse(payload.toString())
+        console.log('1')
+        console.log(localData)
         const light = localData.light
-        const pump = localData.shuibeng
+        const pump = localData.pump
         const temp = localData.temp
-        connection.query(`INSERT INTO smartfishtable(temp,light,pump,time) VALUES(${temp},${light},${pump},NOW() );`, function (error, results, fields) {
+        const ZDValue = localData.ZDValue
+        connection.query(`INSERT INTO smartfishtable(temp,light,pump,quality,time) VALUES(${temp},${light},${pump},${ZDValue},CURTIME() );`, function (error, results, fields) {
             if (error) throw error;
         });
     })
-    //发布消息
-    // client.on('connect', () => {
-    //     client.publish(topic, 'nodejs mqtt test', { qos: 0, retain: false }, (error) => {
-    //         if (error) {
-    //             console.error(error)
-    //         }
-    //     })
+    //消除retain属性消息
+    // client.publish('15/data/temp', "", { qos: 2, retain: true }, (error) => {
+    //     if (error) {
+    //         console.error(error)
+    //     }
     // })
 }
 // -----------------------------------------------------  mqtt --------------------------------------------------
@@ -122,6 +123,23 @@ var server = http.createServer(function (request, response) {
         });
         return
     }
+    //echart数据请求
+    if (path == '/echartData' && method == 'POST') {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'text/html;charset=utf-8')
+        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        let newData
+        connection.query(`SELECT temp,time,quality FROM smartfishtable  ORDER BY id desc limit 10`, function (error, results, fields) {
+            if (error) throw error;
+            newData = JSON.parse(JSON.stringify(results))
+            response.writeHead(200, { 'Content-type': 'text/html;charset=utf-8' });
+            response.write(JSON.stringify(newData));
+            response.end()
+            return
+        });
+
+        return
+    }
     //灯带请求
     if (path == '/light' && method == 'POST') {
         response.statusCode = 200
@@ -132,17 +150,17 @@ var server = http.createServer(function (request, response) {
         })
         request.on('end', () => {
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
-            data = mqttContentObj
+            console.log(mqttContentObj)
             const light = mqttContentObj.light.toString()
             const pump = mqttContentObj.pump.toString()
-            client.publish('15/data/light', JSON.stringify(light), { qos: 2, retain: false }, (error) => {
+            connection.query(`INSERT INTO smartfishtable(light,pump,time) VALUES(${light},${pump},CURTIME() );`, function (error, results, fields) {
+                if (error) throw error;
+            });
+            client.publish('15/data/light', light, { qos: 2, retain: true }, (error) => {
                 if (error) {
                     console.error(error)
                 }
             })
-            connection.query(`INSERT INTO smartfishtable(light,pump,time) VALUES(${light},${pump},NOW() );`, function (error, results, fields) {
-                if (error) throw error;
-            });
             mqttContent = []
         })
         return
@@ -159,14 +177,15 @@ var server = http.createServer(function (request, response) {
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
             const light = mqttContentObj.light.toString()
             const pump = mqttContentObj.pump.toString()
-            client.publish('15/data/pump', pump, { qos: 2, retain: false }, (error) => {
+            connection.query(`INSERT INTO smartfishtable(light,pump,time) VALUES(${light},${pump},CURTIME());`, function (error, results, fields) {
+                if (error) throw error;
+            });
+            client.publish('15/data/pump', pump, { qos: 2, retain: true }, (error) => {
                 if (error) {
                     console.error(error)
                 }
             })
-            connection.query(`INSERT INTO smartfishtable(light,pump,time) VALUES(${light},${pump},NOW());`, function (error, results, fields) {
-                if (error) throw error;
-            });
+
             mqttContent = []
         })
         return
@@ -214,7 +233,6 @@ var server = http.createServer(function (request, response) {
         //选中数据库
         connection.query('use smartfish')
         //查找记录
-        // 选择最近的十个 SELECT name FROM user limit 10
         connection.query(`SELECT * FROM smartfishtable;`, function (error, results, fields) {
             if (error) throw error;
             res = JSON.parse(JSON.stringify(results))
