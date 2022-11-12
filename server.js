@@ -177,7 +177,9 @@ var server = http.createServer(function (request, response) {
             console.log(mqttContentObj)
             const light = mqttContentObj.light.toString()
             const pump = mqttContentObj.pump.toString()
-            connection.query(`INSERT INTO smartfishtable(light,pump,time) VALUES(${light},${pump},CURTIME() );`, function (error, results, fields) {
+            const temp = mqttContentObj.temp.toString()
+            const quality = mqttContentObj.quality.toString()
+            connection.query(`INSERT INTO smartfishtable(light,pump,time,temp,quality) VALUES(${light},${pump},CURTIME(),${temp},${quality} );`, function (error, results, fields) {
                 if (error) throw error;
             });
             client.publish('15/data/light', light, { qos: 2, retain: true }, (error) => {
@@ -201,7 +203,9 @@ var server = http.createServer(function (request, response) {
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
             const light = mqttContentObj.light.toString()
             const pump = mqttContentObj.pump.toString()
-            connection.query(`INSERT INTO smartfishtable(light,pump,time) VALUES(${light},${pump},CURTIME());`, function (error, results, fields) {
+            const temp = mqttContentObj.temp.toString()
+            const quality = mqttContentObj.quality.toString()
+            connection.query(`INSERT INTO smartfishtable(light,pump,time,temp,quality) VALUES(${light},${pump},CURTIME(),${temp},${quality});`, function (error, results, fields) {
                 if (error) throw error;
             });
             client.publish('15/data/pump', pump, { qos: 2, retain: true }, (error) => {
