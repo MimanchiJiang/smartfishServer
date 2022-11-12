@@ -73,7 +73,8 @@ const mqttConnect = (callback) => {
         const pump = localData.pump
         const temp = localData.temp
         const ZDValue = localData.ZDValue
-        connection.query(`INSERT INTO smartfishtable(temp,light,pump,quality,time) VALUES(${temp},${light},${pump},${ZDValue},CURTIME() );`, function (error, results, fields) {
+        const feed = localData.servo
+        connection.query(`INSERT INTO smartfishtable(temp,light,pump,quality,feed,time) VALUES(${temp},${light},${pump},${ZDValue},${feed},CURTIME() );`, function (error, results, fields) {
             if (error) throw error;
         });
     })
@@ -111,7 +112,7 @@ var server = http.createServer(function (request, response) {
     if (path == '/data' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        response.setHeader('Access-Control-Allow-Origin', '*')
         let newData
         connection.query(`SELECT * FROM smartfishtable  ORDER BY id desc limit 1`, function (error, results, fields) {
             if (error) throw error;
@@ -127,9 +128,9 @@ var server = http.createServer(function (request, response) {
     if (path == '/echartData' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        response.setHeader('Access-Control-Allow-Origin', '*')
         let newData
-        connection.query(`SELECT temp,time,quality FROM smartfishtable  ORDER BY id desc limit 10`, function (error, results, fields) {
+        connection.query(`SELECT temp,time,quality FROM smartfishtable  ORDER BY id desc limit 5`, function (error, results, fields) {
             if (error) throw error;
             newData = JSON.parse(JSON.stringify(results))
             response.writeHead(200, { 'Content-type': 'text/html;charset=utf-8' });
@@ -140,11 +141,34 @@ var server = http.createServer(function (request, response) {
 
         return
     }
+    if (path == '/select' && method == 'POST') {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'text/html;charset=utf-8')
+        response.setHeader('Access-Control-Allow-Origin', '*')
+        let select = []
+        request.on('data', (chunk) => {
+            select.push(chunk)
+        })
+        request.on('end', () => {
+            const selectObj = JSON.parse(Buffer.concat(select).toString())
+            const selectItem = selectObj.input.toString()
+            connection.query(`SELECT ${selectItem},time FROM smartfishtable ORDER BY id desc limit 50`, function (error, results, fields) {
+                if (error) throw error;
+                console.log(results)
+                res = JSON.parse(JSON.stringify(results))
+                response.writeHead(200, { 'Content-type': 'text/html;charset=utf-8' });
+                response.write(JSON.stringify(res));
+                response.end()
+                return
+            });
+        })
+        return
+    }
     //灯带请求
     if (path == '/light' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        response.setHeader('Access-Control-Allow-Origin', '*')
         request.on('data', (chunk) => {
             mqttContent.push(chunk)
         })
@@ -169,7 +193,7 @@ var server = http.createServer(function (request, response) {
     if (path == '/pump' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        response.setHeader('Access-Control-Allow-Origin', '*')
         request.on('data', (chunk) => {
             mqttContent.push(chunk)
         })
@@ -194,7 +218,7 @@ var server = http.createServer(function (request, response) {
     if (path == '/register' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        response.setHeader('Access-Control-Allow-Origin', '*')
         let array = []
         request.on('data', (chunk) => {
             array.push(chunk)
@@ -217,7 +241,7 @@ var server = http.createServer(function (request, response) {
             console.log('mqtt已连接')
             response.statusCode = 200
             response.setHeader('Content-Type', 'text/html;charset=utf-8')
-            response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+            response.setHeader('Access-Control-Allow-Origin', '*')
             response.write('connected')
             response.end()
             return
@@ -228,12 +252,12 @@ var server = http.createServer(function (request, response) {
     if (path == '/history' && method == 'POST') {
         response.statusCode = 200
         response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', 'http://10.149.3.126:3000')
+        response.setHeader('Access-Control-Allow-Origin', '*')
         let res
         //选中数据库
         connection.query('use smartfish')
         //查找记录
-        connection.query(`SELECT * FROM smartfishtable;`, function (error, results, fields) {
+        connection.query(`SELECT * FROM smartfishtable  ORDER BY id desc limit 100`, function (error, results, fields) {
             if (error) throw error;
             res = JSON.parse(JSON.stringify(results))
             response.writeHead(200, { 'Content-type': 'text/html;charset=utf-8' });
