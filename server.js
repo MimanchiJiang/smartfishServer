@@ -28,7 +28,9 @@ connection.query(`CREATE TABLE IF NOT EXISTS user(username VARCHAR(100),password
 
 // -----------------------------------------------------  mqtt --------------------------------------------------
 const mqtt = require('mqtt')
-const host = 'broker.emqx.io'
+// const host = 'broker.emqx.io'
+const host = 'broker-cn.emqx.io'
+// const host = '43.138.43.226'
 const mqttPort = '1883'
 const clientId = `mqtt_${Math.random().toString(16).slice(3)}`
 const connectUrl = `mqtt://${host}:${mqttPort}`
@@ -36,7 +38,7 @@ const topic = '15/data/temp'
 const client = mqtt.connect(connectUrl, {
     clientId,
     clean: false,
-    connectTimeout: 4000,
+    connectTimeout: 40000,
     username: 'emqx',
     password: 'public',
     reconnectPeriod: 1000,
@@ -46,7 +48,7 @@ const mqttConnect = (callback) => {
     const client = mqtt.connect(connectUrl, {
         clientId,
         clean: false,
-        connectTimeout: 4000,
+        connectTimeout: 40000,
         username: 'emqx',
         password: 'public',
         reconnectPeriod: 1000,
@@ -67,19 +69,28 @@ const mqttConnect = (callback) => {
     })
     client.on('message', (topic, payload) => {
         localData = JSON.parse(payload.toString())
-        console.log('1')
-        console.log(localData)
         const light = localData.light
         const pump = localData.pump
         const temp = localData.temp
         const ZDValue = localData.ZDValue
         const feed = localData.servo
-        connection.query(`INSERT INTO smartfishtable(temp,light,pump,quality,feed,time) VALUES(${temp},${light},${pump},${ZDValue},${feed},CURTIME() );`, function (error, results, fields) {
+        const autoControl = localData.autoControl
+        connection.query(`INSERT INTO smartfishtable(temp,light,pump,quality,feed,time,autoControl) VALUES(${temp},${light},${pump},${ZDValue},${feed},CURTIME() ,${autoControl});`, function (error, results, fields) {
             if (error) throw error;
         });
     })
-    //消除retain属性消息
-    // client.publish('15/data/temp', "", { qos: 2, retain: true }, (error) => {
+    // 消除retain属性消息
+    // client.publish('15/data/TimingFeed', "", { qos: 2, retain: true }, (error) => {
+    //     if (error) {
+    //         console.error(error)
+    //     }
+    // })
+    // client.publish('15/data/light', "", { qos: 2, retain: true }, (error) => {
+    //     if (error) {
+    //         console.error(error)
+    //     }
+    // })
+    // client.publish('15/data/pump', "", { qos: 2, retain: true }, (error) => {
     //     if (error) {
     //         console.error(error)
     //     }
@@ -164,6 +175,26 @@ var server = http.createServer(function (request, response) {
         })
         return
     }
+    //自动控制
+    if (path == '/autoControl' && method == 'POST') {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'text/html;charset=utf-8')
+        response.setHeader('Access-Control-Allow-Origin', '*')
+        request.on('data', (chunk) => {
+            mqttContent.push(chunk)
+        })
+        request.on('end', () => {
+            const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
+            const autoStatus = mqttContentObj.autoStatus.toString()
+            client.publish('15/data/autoControl', autoStatus, { qos: 2, retain: false }, (error) => {
+                if (error) {
+                    console.error(error)
+                }
+            })
+            mqttContent = []
+        })
+        return
+    }
     //灯带请求
     if (path == '/light' && method == 'POST') {
         response.statusCode = 200
@@ -176,18 +207,40 @@ var server = http.createServer(function (request, response) {
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
             console.log(mqttContentObj)
             const light = mqttContentObj.light.toString()
-            const pump = mqttContentObj.pump.toString()
-            const temp = mqttContentObj.temp.toString()
-            const quality = mqttContentObj.quality.toString()
-            connection.query(`INSERT INTO smartfishtable(light,pump,time,temp,quality) VALUES(${light},${pump},CURTIME(),${temp},${quality} );`, function (error, results, fields) {
-                if (error) throw error;
-            });
-            client.publish('15/data/light', light, { qos: 2, retain: true }, (error) => {
+            console.log(light)
+            client.publish('15/data/light', light, { qos: 2, retain: false }, (error) => {
                 if (error) {
                     console.error(error)
                 }
             })
             mqttContent = []
+        })
+        return
+    }
+    //定时喂食
+    if (path == '/TimingFeed' && method == 'POST') {
+        response.statusCode = 200
+        response.setHeader('Content-Type', 'text/html;charset=utf-8')
+        response.setHeader('Access-Control-Allow-Origin', '*')
+        request.on('data', (chunk) => {
+            mqttContent.push(chunk)
+        })
+        request.on('end', () => {
+            const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
+            // console.log(mqttContentObj)
+            const TimingFeed = mqttContentObj.servoTime.toString()
+            console.log(TimingFeed)
+            client.publish('15/data/TimingFeed', TimingFeed, { qos: 2, retain: false }, (error) => {
+                if (error) {
+                    console.error(error)
+                }
+            })
+            mqttContent = []
+            response.writeHead(200, { 'Content-type': 'text/html;charset=utf-8' });
+            response.write(JSON.stringify(TimingFeed));
+            response.end()
+            return
+
         })
         return
     }
@@ -201,14 +254,14 @@ var server = http.createServer(function (request, response) {
         })
         request.on('end', () => {
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
-            const light = mqttContentObj.light.toString()
+            // const light = mqttContentObj.light.toString()
             const pump = mqttContentObj.pump.toString()
-            const temp = mqttContentObj.temp.toString()
-            const quality = mqttContentObj.quality.toString()
-            connection.query(`INSERT INTO smartfishtable(light,pump,time,temp,quality) VALUES(${light},${pump},CURTIME(),${temp},${quality});`, function (error, results, fields) {
-                if (error) throw error;
-            });
-            client.publish('15/data/pump', pump, { qos: 2, retain: true }, (error) => {
+            // const temp = mqttContentObj.temp.toString()
+            // const quality = mqttContentObj.quality.toString()
+            // connection.query(`INSERT INTO smartfishtable(light,pump,time,temp,quality) VALUES(${light},${pump},CURTIME(),${temp},${quality});`, function (error, results, fields) {
+            //     if (error) throw error;
+            // });
+            client.publish('15/data/pump', pump, { qos: 2, retain: false }, (error) => {
                 if (error) {
                     console.error(error)
                 }
