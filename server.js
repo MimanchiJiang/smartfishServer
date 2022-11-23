@@ -75,7 +75,7 @@ const mqttConnect = (callback) => {
         const ZDValue = localData.ZDValue
         const feed = localData.servo
         const autoControl = localData.autoControl
-        connection.query(`INSERT INTO smartfishtable(temp,light,pump,quality,feed,time,autoControl) VALUES(${temp},${light},${pump},${ZDValue},${feed},CURTIME() ,${autoControl});`, function (error, results, fields) {
+        connection.query(`INSERT INTO smartfishtable(temp,light,pump,quality,feed,time,autoControl) VALUES(${temp},${light},${pump},${ZDValue},${feed},NOW() ,${autoControl});`, function (error, results, fields) {
             if (error) throw error;
         });
     })
@@ -117,13 +117,26 @@ var server = http.createServer(function (request, response) {
 
     /******** 从这里开始看，上面不要看 ************/
 
-    // console.log('有个人发请求过来啦！路径（带查询参数）为：' + pathWithQuery)
+
+    console.log('有个人发请求过来啦！路径（带查询参数）为：' + pathWithQuery)
     let mqttContent = []
+    if (method == 'OPTIONS') {
+        response.statusCode = 200
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
+        response.end()
+    }
     //拿取数据库的最新一条数据
     if (path == '/data' && method == 'POST') {
         response.statusCode = 200
-        response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', '*')
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
         let newData
         connection.query(`SELECT * FROM smartfishtable  ORDER BY id desc limit 1`, function (error, results, fields) {
             if (error) throw error;
@@ -137,14 +150,19 @@ var server = http.createServer(function (request, response) {
     }
     //echart数据请求
     if (path == '/echartData' && method == 'POST') {
-        response.statusCode = 200
-        response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', '*')
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
         let newData
         connection.query(`SELECT temp,time,quality FROM smartfishtable  ORDER BY id desc limit 5`, function (error, results, fields) {
             if (error) throw error;
             newData = JSON.parse(JSON.stringify(results))
-            response.writeHead(200, { 'Content-type': 'text/html;charset=utf-8' });
+            response.statusCode = 200
+            response.setHeader('Content-Type', 'text/html;charset=utf-8')
+            // response.setHeader("Access-Control-Allow-Origin", "*");
+            // response.setHeader("Access-Control-Allow-Methods", "POST, GET, PUT, OPTIONS, DELETE");
             response.write(JSON.stringify(newData));
             response.end()
             return
@@ -154,8 +172,11 @@ var server = http.createServer(function (request, response) {
     }
     if (path == '/select' && method == 'POST') {
         response.statusCode = 200
-        response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', '*')
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
         let select = []
         request.on('data', (chunk) => {
             select.push(chunk)
@@ -178,32 +199,41 @@ var server = http.createServer(function (request, response) {
     //自动控制
     if (path == '/autoControl' && method == 'POST') {
         response.statusCode = 200
-        response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', '*')
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
         request.on('data', (chunk) => {
             mqttContent.push(chunk)
         })
         request.on('end', () => {
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
             const autoStatus = mqttContentObj.autoStatus.toString()
+            console.log(autoStatus)
             client.publish('15/data/autoControl', autoStatus, { qos: 2, retain: false }, (error) => {
                 if (error) {
                     console.error(error)
                 }
             })
             mqttContent = []
+            response.end()
         })
         return
     }
     //灯带请求
     if (path == '/light' && method == 'POST') {
         response.statusCode = 200
-        response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', '*')
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
         request.on('data', (chunk) => {
             mqttContent.push(chunk)
         })
         request.on('end', () => {
+            console.log(mqttContent)
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
             console.log(mqttContentObj)
             const light = mqttContentObj.light.toString()
@@ -214,20 +244,25 @@ var server = http.createServer(function (request, response) {
                 }
             })
             mqttContent = []
+            response.end()
         })
         return
     }
     //定时喂食
     if (path == '/TimingFeed' && method == 'POST') {
         response.statusCode = 200
-        response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', '*')
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
         request.on('data', (chunk) => {
             mqttContent.push(chunk)
         })
         request.on('end', () => {
+            console.log(mqttContent)
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
-            // console.log(mqttContentObj)
+            console.log(mqttContentObj)
             const TimingFeed = mqttContentObj.servoTime.toString()
             console.log(TimingFeed)
             client.publish('15/data/TimingFeed', TimingFeed, { qos: 2, retain: false }, (error) => {
@@ -247,8 +282,11 @@ var server = http.createServer(function (request, response) {
     //水泵
     if (path == '/pump' && method == 'POST') {
         response.statusCode = 200
-        response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', '*')
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
         request.on('data', (chunk) => {
             mqttContent.push(chunk)
         })
@@ -256,6 +294,7 @@ var server = http.createServer(function (request, response) {
             const mqttContentObj = JSON.parse(Buffer.concat(mqttContent).toString())
             // const light = mqttContentObj.light.toString()
             const pump = mqttContentObj.pump.toString()
+            console.log(pump)
             // const temp = mqttContentObj.temp.toString()
             // const quality = mqttContentObj.quality.toString()
             // connection.query(`INSERT INTO smartfishtable(light,pump,time,temp,quality) VALUES(${light},${pump},CURTIME(),${temp},${quality});`, function (error, results, fields) {
@@ -268,14 +307,18 @@ var server = http.createServer(function (request, response) {
             })
 
             mqttContent = []
+            response.end()
         })
         return
     }
     //注册请求
     if (path == '/register' && method == 'POST') {
         response.statusCode = 200
-        response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', '*')
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
         let array = []
         request.on('data', (chunk) => {
             array.push(chunk)
@@ -289,16 +332,20 @@ var server = http.createServer(function (request, response) {
             connection.query(`INSERT INTO user(username,password) VALUES(${username},${password});`, function (error, results, fields) {
                 if (error) throw error;
             });
+            response.end()
         })
         return
     }
     //mqtt请求
-    if (path == '/mqtt') {
+    if (path == '/mqtt' && method == 'POST') {
         mqttConnect(() => {
             console.log('mqtt已连接')
             response.statusCode = 200
-            response.setHeader('Content-Type', 'text/html;charset=utf-8')
-            response.setHeader('Access-Control-Allow-Origin', '*')
+            response.setHeader("Access-Control-Allow-Origin", "*");
+            response.setHeader("Access-Control-Allow-Credentials", "true");
+            response.setHeader("Access-Control-Allow-Methods", "*");
+            response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+            response.setHeader("Access-Control-Expose-Headers", "*");
             response.write('connected')
             response.end()
             return
@@ -308,8 +355,11 @@ var server = http.createServer(function (request, response) {
     //历史记录请求
     if (path == '/history' && method == 'POST') {
         response.statusCode = 200
-        response.setHeader('Content-Type', 'text/html;charset=utf-8')
-        response.setHeader('Access-Control-Allow-Origin', '*')
+        response.setHeader("Access-Control-Allow-Origin", "*");
+        response.setHeader("Access-Control-Allow-Credentials", "true");
+        response.setHeader("Access-Control-Allow-Methods", "*");
+        response.setHeader("Access-Control-Allow-Headers", "Content-Type,Access-Token");
+        response.setHeader("Access-Control-Expose-Headers", "*");
         let res
         //选中数据库
         connection.query('use smartfish')
@@ -325,32 +375,32 @@ var server = http.createServer(function (request, response) {
         });
         return
     }
-    else {
-        response.statusCode = 200
-        // 默认首页
-        const filePath = path === '/' ? '/index.html' : path
-        const index = filePath.lastIndexOf('.')
-        const suffix = filePath.substring(index)
-        const fileTypes = {
-            '.html': 'text/html',
-            '.css': 'text/css',
-            '.js': 'text/javascript',
-            '.png': 'image/png',
-            '.jpg': 'image/jpeg'
-        }
-        response.setHeader('Content-Type', `${fileTypes[suffix] || 'text/html'};charset=utf-8`)
+    // else {
+    //     response.statusCode = 200
+    //     // 默认首页
+    //     const filePath = path === '/' ? '/index.html' : path
+    //     const index = filePath.lastIndexOf('.')
+    //     const suffix = filePath.substring(index)
+    //     const fileTypes = {
+    //         '.html': 'text/html',
+    //         '.css': 'text/css',
+    //         '.js': 'text/javascript',
+    //         '.png': 'image/png',
+    //         '.jpg': 'image/jpeg'
+    //     }
+    //     response.setHeader('Content-Type', `${fileTypes[suffix] || 'text/html'};charset=utf-8`)
 
-        let content
-        try {
-            content = fs.readFileSync(`./public/${filePath}`)
+    //     let content
+    //     try {
+    //         content = fs.readFileSync(`./public/${filePath}`)
 
-        } catch (error) {
-            content = '文件不存在'
-            response.statusCode = 404
-        }
-        response.write(content)
-        response.end()
-    }
+    //     } catch (error) {
+    //         content = '文件不存在'
+    //         response.statusCode = 404
+    //     }
+    //     response.write(content)
+    //     response.end()
+    // }
 
 
     /******** 代码结束，下面不要看 ************/
